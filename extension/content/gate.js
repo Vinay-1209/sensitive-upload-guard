@@ -320,12 +320,35 @@
     );
   }
 
+  function showActiveBadge() {
+    if (document.getElementById("sug-active-badge")) return;
+    const badge = document.createElement("div");
+    badge.id = "sug-active-badge";
+    badge.textContent = "SUG active";
+    badge.title = "Sensitive Upload Guard is monitoring this page";
+    Object.assign(badge.style, {
+      position: "fixed",
+      zIndex: "2147483647",
+      right: "12px",
+      bottom: "12px",
+      background: "#0b6e4f",
+      color: "#fff",
+      font: "600 12px system-ui,sans-serif",
+      padding: "6px 10px",
+      borderRadius: "999px",
+      boxShadow: "0 2px 8px rgba(0,0,0,.25)",
+      pointerEvents: "none",
+    });
+    document.documentElement.appendChild(badge);
+  }
+
   function boot() {
     if (window.SUG.site === "unknown") {
       console.info("[SUG] unsupported site");
       return;
     }
     console.info("[SUG] active on", window.SUG.site);
+    showActiveBadge();
     installPromptHooks();
     installFileHooksV2();
   }

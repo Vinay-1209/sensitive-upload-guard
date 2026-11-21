@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import glob
 import logging
 import os
-import tkinter as tk
+import subprocess
+import sys
+from pathlib import Path
 from typing import Literal
 
 logger = logging.getLogger(__name__)
@@ -13,14 +16,26 @@ Decision = Literal["continue", "cancel"]
 
 
 def _ensure_display() -> None:
-    if os.environ.get("DISPLAY"):
-        return
-    if os.path.isdir("/tmp/.X11-unix"):
-        socks = sorted(os.listdir("/tmp/.X11-unix"))
+    if not os.environ.get("DISPLAY"):
+        socks = sorted(Path("/tmp/.X11-unix").glob("X*")) if Path("/tmp/.X11-unix").is_dir() else []
         if socks:
-            os.environ["DISPLAY"] = f":{socks[0][1:]}"
-            return
-    os.environ.setdefault("DISPLAY", ":0")
+            os.environ["DISPLAY"] = f":{socks[0].name[1:]}"
+        else:
+            os.environ["DISPLAY"] = ":0"
+
+    if not os.environ.get("XAUTHORITY"):
+        uid = os.getuid()
+        candidates = (
+            sorted(glob.glob(f"/run/user/{uid}/.mutter-Xwaylandauth.*"), reverse=True)
+            + sorted(glob.glob(f"/run/user/{uid}/.Xauthority"), reverse=True)
+        )
+        home_xa = Path.home() / ".Xauthority"
+        if home_xa.is_file():
+            candidates.append(str(home_xa))
+        for path in candidates:
+            if Path(path).is_file():
+                os.environ["XAUTHORITY"] = path
+                break
 
 
 def ask_user(
@@ -35,11 +50,55 @@ def ask_user(
     Fail-closed: any UI error → cancel.
     """
     _ensure_display()
+    # Prefer a fresh GUI subprocess so Chrome's stripped env cannot break Tk.
     try:
-        return _show(source=source, detail=detail, filename=filename, error=error)
+        return _ask_via_subprocess(
+            source=source, detail=detail, filename=filename, error=error
+        )
     except Exception as exc:
-        logger.exception("dialog failed: %s", exc)
-        return "cancel"
+        logger.exception("subprocess dialog failed: %s", exc)
+        try:
+            return _show(source=source, detail=detail, filename=filename, error=error)
+        except Exception as exc2:
+            logger.exception("inline dialog failed: %s", exc2)
+            return "cancel"
+
+
+def _ask_via_subprocess(
+    *,
+    source: str,
+    detail: str,
+    filename: str | None,
+    error: str | None,
+) -> Decision:
+    env = os.environ.copy()
+    script = Path(__file__).with_name("_dialog_cli.py")
+    cmd = [
+        sys.executable,
+        str(script),
+        "--source",
+        source,
+        "--detail",
+        detail or "",
+    ]
+    if filename:
+        cmd.extend(["--filename", filename])
+    if error:
+        cmd.extend(["--error", error])
+    proc = subprocess.run(
+        cmd,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=300,
+        check=False,
+    )
+    if proc.stderr:
+        logger.info("dialog stderr: %s", proc.stderr.strip()[:500])
+    out = (proc.stdout or "").strip().lower()
+    if out == "continue":
+        return "continue"
+    return "cancel"
 
 
 def _show(
@@ -49,6 +108,8 @@ def _show(
     filename: str | None,
     error: str | None,
 ) -> Decision:
+    import tkinter as tk
+
     result: dict[str, Decision] = {"value": "cancel"}
 
     root = tk.Tk()
