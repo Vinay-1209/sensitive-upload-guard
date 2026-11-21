@@ -40,3 +40,6 @@ secrets/
 # Runtime logs / local server noise
 *.log
 /tmp/
+
+# Demo render intermediates (keep final mp4)
+demo/frames/

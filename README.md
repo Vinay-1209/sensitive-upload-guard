@@ -134,7 +134,21 @@ PYTHONPATH=. pytest -q
 
 See [ARCHITECTURE.md](ARCHITECTURE.md).
 
-## Demo checklist
+## Demo video
+
+A walkthrough clip is in [`demo/sensitive-upload-guard-demo.mp4`](demo/sensitive-upload-guard-demo.mp4).
+
+Regenerate locally:
+
+```bash
+source .venv/bin/activate
+pip install -r requirements.txt   # includes Pillow
+python scripts/make_demo_video.py
+```
+
+Upload that file to YouTube (Unlisted) and paste the link in your submission form.
+
+### Live demo checklist (screen recording of real browsers)
 
 1. Clean prompt — no dialog  
 2. Sensitive prompt — Cancel, then Continue  
