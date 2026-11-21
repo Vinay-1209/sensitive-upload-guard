@@ -1,0 +1,5 @@
+/* Distinct color for AI-generated responses (ChatGPT + Perplexity). */
+.sug-ai-response,
+.sug-ai-response * {
+  color: #0b6e4f !important;
+}
