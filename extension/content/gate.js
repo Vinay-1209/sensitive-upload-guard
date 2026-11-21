@@ -10,29 +10,28 @@
   let allowNextFileChange = false;
   const approvedFiles = new WeakSet();
 
-  function getComposerText() {
-    const sels = window.SUG.selectors.composer;
-    for (const sel of sels) {
-      const el = document.querySelector(sel);
-      if (!el) continue;
-      if (el.tagName === "TEXTAREA" || el.tagName === "INPUT") {
-        return el.value || "";
-      }
-      if (el.isContentEditable) {
-        return el.innerText || el.textContent || "";
-      }
+  function readEditable(el) {
+    if (!el) return "";
+    if (el.tagName === "TEXTAREA" || el.tagName === "INPUT") {
+      return el.value || "";
     }
-    // Fallback: focused editable
-    const active = document.activeElement;
-    if (active) {
-      if (active.tagName === "TEXTAREA" || active.tagName === "INPUT") {
-        return active.value || "";
-      }
-      if (active.isContentEditable) {
-        return active.innerText || active.textContent || "";
-      }
+    if (el.isContentEditable || el.getAttribute("contenteditable") === "true") {
+      return el.innerText || el.textContent || "";
     }
     return "";
+  }
+
+  function getComposerText() {
+    const sels = (window.SUG.selectors && window.SUG.selectors.composer) || [];
+    for (const sel of sels) {
+      try {
+        const el = document.querySelector(sel);
+        const text = readEditable(el);
+        if (text && text.trim()) return text;
+        if (el) return text;
+      } catch (_) {}
+    }
+    return readEditable(document.activeElement);
   }
 
   async function approvePromptOrBlock() {
@@ -40,15 +39,12 @@
     if (!text.includes(MARKER)) {
       return true;
     }
-    checking = true;
     try {
       const result = await window.SUG.checkPrompt(text);
       return result && result.decision === "continue";
     } catch (e) {
       console.error("[SUG] prompt check failed", e);
       return false;
-    } finally {
-      checking = false;
     }
   }
 
@@ -73,12 +69,18 @@
     event.stopPropagation();
     event.stopImmediatePropagation();
 
-    const ok = await approvePromptOrBlock();
+    // Lock immediately so pointerdown+click do not double-open dialogs.
+    checking = true;
+    let ok = false;
+    try {
+      ok = await approvePromptOrBlock();
+    } finally {
+      checking = false;
+    }
     if (!ok) {
       return;
     }
     allowNextSubmit = true;
-    // Re-trigger the original action after approval.
     const target = event.target;
     if (event.type === "keydown") {
       const el = document.activeElement || target;
@@ -92,12 +94,32 @@
           cancelable: true,
         })
       );
-    } else if (target && typeof target.click === "function" && target.tagName === "BUTTON") {
-      target.click();
     } else {
-      const form = (target && target.closest && target.closest("form")) || null;
-      if (form) form.requestSubmit ? form.requestSubmit() : form.submit();
+      const btn =
+        (target && target.closest && target.closest("button, [role='button']")) ||
+        window.SUG.firstMatch(window.SUG.selectors.sendButton);
+      if (btn && typeof btn.click === "function") {
+        btn.click();
+      } else {
+        const form = (target && target.closest && target.closest("form")) || null;
+        if (form) form.requestSubmit ? form.requestSubmit() : form.submit();
+      }
     }
+  }
+
+  function isSendControl(el) {
+    if (!el) return false;
+    const btn = el.closest ? el.closest("button, [role='button'], input[type='submit']") : el;
+    if (!btn) return false;
+    const isSend = (window.SUG.selectors.sendButton || []).some((sel) => {
+      try {
+        return btn.matches(sel);
+      } catch (_) {
+        return false;
+      }
+    });
+    const label = `${btn.getAttribute("aria-label") || ""} ${btn.getAttribute("data-testid") || ""} ${btn.id || ""} ${btn.textContent || ""}`.toLowerCase();
+    return isSend || /send|submit/.test(label);
   }
 
   function installPromptHooks() {
@@ -111,7 +133,7 @@
           active.matches &&
           window.SUG.selectors.composer.some((sel) => {
             try {
-              return active.matches(sel) || active.closest(sel);
+              return active.matches(sel) || !!active.closest(sel);
             } catch (_) {
               return false;
             }
@@ -124,21 +146,17 @@
       true
     );
 
+    // pointerdown catches SPAs that stop click; click remains as fallback
+    const onPointerOrClick = (e) => {
+      if (!isSendControl(e.target)) return;
+      onSubmitAttempt(e);
+    };
+    document.addEventListener("pointerdown", onPointerOrClick, true);
+    document.addEventListener("click", onPointerOrClick, true);
+
     document.addEventListener(
-      "click",
+      "submit",
       (e) => {
-        const btn = e.target && e.target.closest && e.target.closest("button");
-        if (!btn) return;
-        const isSend = window.SUG.selectors.sendButton.some((sel) => {
-          try {
-            return btn.matches(sel);
-          } catch (_) {
-            return false;
-          }
-        });
-        // Heuristic: aria-label / data-testid containing send/submit
-        const label = `${btn.getAttribute("aria-label") || ""} ${btn.getAttribute("data-testid") || ""}`.toLowerCase();
-        if (!isSend && !/send|submit/.test(label)) return;
         onSubmitAttempt(e);
       },
       true

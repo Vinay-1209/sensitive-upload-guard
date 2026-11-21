@@ -11,7 +11,9 @@
     "https://chatgpt.com/*",
     "https://chat.openai.com/*",
     "https://www.perplexity.ai/*",
-    "https://perplexity.ai/*"
+    "https://perplexity.ai/*",
+    "http://127.0.0.1/*",
+    "http://localhost/*"
   ],
   "background": {
     "service_worker": "background.js",
@@ -25,7 +27,9 @@
         "https://chatgpt.com/*",
         "https://chat.openai.com/*",
         "https://www.perplexity.ai/*",
-        "https://perplexity.ai/*"
+        "https://perplexity.ai/*",
+        "http://127.0.0.1/*",
+        "http://localhost/*"
       ],
       "js": [
         "content/selectors.js",
@@ -46,7 +50,8 @@
     }
   },
   "action": {
-    "default_title": "Sensitive Upload Guard"
+    "default_title": "Sensitive Upload Guard",
+    "default_popup": "popup.html"
   },
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAxwYcn1M+tUmQJYqO4jVaGgOuSHxA1khndZ4axT3MfwoAsb9ZdaqVrkLeEat9hvxk86MipnXW7xXdcPEyvKmWm0hgPi1zsGZ0G7PvmdjB6ykZc9U9UporLFBr2FJfCd/wsVR1gt8ExIuvB/ak6Y0iq9kFIQJVzLvKRRM5t2OVLMaTSWMdhtNO6pQt0NMhzKEQF3rZnewp9fIGyhxsZWYqwqiE/lSD3Wol99bl/vNwgQzKOrE8Is3iMXmZAtbhae/sKnMand6aau5krZitdvWR/A3oWW+fNK0Q5mlpupkVuw4gDcTWAF7ROLOrjsCYsElpNnR5LEVIFO4vmRjSXAfv/QIDAQAB"
 }

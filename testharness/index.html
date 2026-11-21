@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Sensitive Upload Guard — Local Test Harness</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 720px; margin: 2rem auto; padding: 0 1rem; }
+    textarea { width: 100%; height: 100px; font-size: 14px; }
+    .row { display: flex; gap: 8px; margin-top: 8px; align-items: center; }
+    button { padding: 8px 14px; font-weight: 600; cursor: pointer; }
+    .assistant-reply { margin-top: 1.5rem; padding: 12px; background: #f3f4f6; border-radius: 8px; }
+    #log { white-space: pre-wrap; background: #111827; color: #e5e7eb; padding: 12px; border-radius: 8px; min-height: 80px; }
+    .ok { color: #16a34a; } .bad { color: #dc2626; }
+  </style>
+</head>
+<body>
+  <h1>Sensitive Upload Guard — Test Harness</h1>
+  <p>Uses the same extension content scripts. Marker: <code>WALLED_SENSITIVE</code></p>
+
+  <label for="composer"><strong>Composer</strong></label>
+  <textarea id="composer" placeholder="Type a prompt…"></textarea>
+
+  <div class="row">
+    <input id="file-input" type="file" />
+    <button id="send-btn" type="button">Send</button>
+  </div>
+
+  <div id="assistant" class="assistant-reply">
+    This is a fake AI response. It should turn green when the extension paints it.
+  </div>
+
+  <h3>Event log</h3>
+  <div id="log"></div>
+
+  <script>
+    const logEl = document.getElementById('log');
+    function log(msg, cls) {
+      const line = document.createElement('div');
+      if (cls) line.className = cls;
+      line.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+      logEl.prepend(line);
+    }
+    document.getElementById('send-btn').addEventListener('click', () => {
+      // Page-level handler — should only fire if extension allows the click through
+      const text = document.getElementById('composer').value;
+      log('PAGE received send for: ' + JSON.stringify(text), 'ok');
+      document.getElementById('assistant').textContent =
+        'Assistant echo: ' + text;
+    });
+    document.getElementById('file-input').addEventListener('change', (e) => {
+      const f = e.target.files && e.target.files[0];
+      log('PAGE received file change: ' + (f ? f.name : '(none)'), 'ok');
+    });
+    log('Harness ready — load the extension, then try clean vs sensitive prompts/files.');
+  </script>
+</body>
+</html>

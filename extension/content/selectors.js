@@ -13,73 +13,96 @@
     host === "perplexity.ai" ||
     host.endsWith(".perplexity.ai");
 
+  const isTestHarness =
+    host === "127.0.0.1" ||
+    host === "localhost" ||
+    host === "";
+
   const SELECTORS = {
     chatgpt: {
       composer: [
         "#prompt-textarea",
+        "#mobile-composer-prompt",
+        "textarea[placeholder*='Ask ChatGPT' i]",
+        "textarea[aria-label*='Chat with ChatGPT' i]",
+        "textarea[aria-label*='Message' i]",
         "div[contenteditable='true']#prompt-textarea",
-        "textarea[data-id='root']",
-        "form textarea",
         "div.ProseMirror[contenteditable='true']",
+        "form textarea",
+        "textarea",
       ],
       sendButton: [
         "button[data-testid='send-button']",
-        "button[aria-label*='Send']",
+        "button[aria-label='Send message']",
+        "button[aria-label*='Send' i]",
+        "button[type='submit']",
         "form button[type='submit']",
       ],
-      fileInput: ["input[type='file']"],
+      fileInput: [
+        "input[type='file']",
+        "#octane-mobile-composer-photos-input",
+      ],
       assistant: [
         "[data-message-author-role='assistant']",
-        "[data-testid*='assistant']",
-        "div[class*='assistant'] .markdown",
+        "[data-testid*='assistant' i]",
+        "article[data-testid*='conversation-turn']",
+        "div[class*='assistant' i] .markdown",
+        ".markdown.prose",
       ],
     },
     perplexity: {
       composer: [
-        "textarea[placeholder*='Ask']",
+        "textarea[placeholder*='Ask' i]",
         "div[contenteditable='true']",
         "textarea",
       ],
       sendButton: [
-        "button[aria-label*='Submit']",
-        "button[aria-label*='Send']",
+        "button[aria-label*='Submit' i]",
+        "button[aria-label*='Send' i]",
         "button[type='submit']",
       ],
       fileInput: ["input[type='file']"],
       assistant: [
         ".prose",
-        "[class*='answer']",
-        "[class*='Answer']",
-        "[data-testid*='answer']",
+        "[class*='answer' i]",
+        "[data-testid*='answer' i]",
         "main .markdown",
       ],
+    },
+    test: {
+      composer: ["#composer", "textarea"],
+      sendButton: ["#send-btn", "button[type='submit']"],
+      fileInput: ["#file-input", "input[type='file']"],
+      assistant: [".assistant-reply", "#assistant"],
     },
   };
 
   function firstMatch(selectors) {
     for (const sel of selectors) {
-      const el = document.querySelector(sel);
-      if (el) return el;
+      try {
+        const el = document.querySelector(sel);
+        if (el) return el;
+      } catch (_) {}
     }
     return null;
   }
 
-  function allMatches(selectors) {
-    const out = [];
-    for (const sel of selectors) {
-      document.querySelectorAll(sel).forEach((el) => out.push(el));
-    }
-    return out;
-  }
-
   global.SUG = global.SUG || {};
-  global.SUG.site = isChatGPT ? "chatgpt" : isPerplexity ? "perplexity" : "unknown";
-  global.SUG.selectors = isChatGPT
-    ? SELECTORS.chatgpt
+  global.SUG.site = isChatGPT
+    ? "chatgpt"
     : isPerplexity
-      ? SELECTORS.perplexity
-      : SELECTORS.chatgpt;
+      ? "perplexity"
+      : isTestHarness
+        ? "test"
+        : "unknown";
+  global.SUG.selectors =
+    global.SUG.site === "chatgpt"
+      ? SELECTORS.chatgpt
+      : global.SUG.site === "perplexity"
+        ? SELECTORS.perplexity
+        : global.SUG.site === "test"
+          ? SELECTORS.test
+          : SELECTORS.chatgpt;
   global.SUG.firstMatch = firstMatch;
-  global.SUG.allMatches = allMatches;
   global.SUG.MARKER = "WALLED_SENSITIVE";
 })(window);

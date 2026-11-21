@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 12px; min-width: 260px; }
+    button { margin-top: 8px; padding: 6px 10px; }
+    #status { margin-top: 8px; white-space: pre-wrap; font-size: 12px; }
+    .ok { color: #15803d; } .bad { color: #b91c1c; }
+  </style>
+</head>
+<body>
+  <strong>Sensitive Upload Guard</strong>
+  <div>Marker: <code>WALLED_SENSITIVE</code></div>
+  <button id="ping">Test native host</button>
+  <div id="status">Click the button to verify Chrome ↔ Python host.</div>
+  <script src="popup.js"></script>
+</body>
+</html>
