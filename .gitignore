@@ -43,3 +43,9 @@ secrets/
 
 # Demo render intermediates (keep final mp4)
 demo/frames/
+
+# Desktop app browser profile
+.local/share/sensitive-upload-guard/
+
+*.mp4
+!demo/README.md

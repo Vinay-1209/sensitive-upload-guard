@@ -50,18 +50,14 @@ def ask_user(
     Fail-closed: any UI error → cancel.
     """
     _ensure_display()
-    # Prefer a fresh GUI subprocess so Chrome's stripped env cannot break Tk.
+    # Always use a subprocess so the main app's Tk event loop is never nested.
     try:
         return _ask_via_subprocess(
             source=source, detail=detail, filename=filename, error=error
         )
     except Exception as exc:
         logger.exception("subprocess dialog failed: %s", exc)
-        try:
-            return _show(source=source, detail=detail, filename=filename, error=error)
-        except Exception as exc2:
-            logger.exception("inline dialog failed: %s", exc2)
-            return "cancel"
+        return "cancel"
 
 
 def _ask_via_subprocess(
@@ -249,6 +245,18 @@ def _show(
     dialog.protocol("WM_DELETE_WINDOW", lambda: finish("cancel"))
     dialog.bind("<Escape>", lambda _e: finish("cancel"))
     dialog.update_idletasks()
+    # ponytail: optional demo auto-click via /tmp/sug_demo_auto (cancel|continue); ceiling=file IPC for recordings
+    try:
+        auto = Path("/tmp/sug_demo_auto").read_text(encoding="utf-8").strip().lower()
+    except OSError:
+        auto = ""
+    if auto in ("continue", "cancel"):
+        delay_ms = 2800
+        try:
+            delay_ms = int(Path("/tmp/sug_demo_auto_ms").read_text(encoding="utf-8").strip())
+        except (OSError, ValueError):
+            pass
+        dialog.after(delay_ms, lambda a=auto: finish(a))  # type: ignore[misc]
     root.mainloop()
     try:
         root.destroy()

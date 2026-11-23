@@ -4,35 +4,37 @@
 
 Prevent accidental leaks of the marker `WALLED_SENSITIVE` into ChatGPT and Perplexity by inspecting prompts and uploads **before transmit**, showing a **native** Continue/Cancel dialog when found, and visibly restyling AI replies on both sites.
 
+This is a **standalone desktop application**. It does not install or require a browser extension, plugin, or add-on.
+
 ## Approach
 
 ```
-Browser (Chrome / Firefox)
-  └─ Extension (MV3)
-       ├─ content/gate.js      intercept send + file attach
-       ├─ content/color.js     paint AI responses
-       ├─ content/selectors.js site DOM hooks
-       └─ background.js        nativeMessaging (sendNativeMessage)
-                │
-                ▼
-       Python native host (stdio length-prefixed JSON)
-         ├─ run_host.sh        restores DISPLAY/XAUTHORITY (Chrome strips them)
-         ├─ scan/detect.py     text / PDF (pypdf) / image (EXIF + Tesseract)
-         └─ dialog.py          tkinter Continue/Cancel (GUI subprocess)
+Desktop app (tkinter)
+  └─ Start Guard
+       └─ Playwright launches Chrome/Chromium
+            • persistent profile (~/.local/share/sensitive-upload-guard/profile)
+            • --disable-extensions
+            • add_init_script(web/gate.js)
+            • expose_binding("__sug_check")
+                 │
+                 ▼
+            Python handlers → scan (text/PDF/image) → tk Continue/Cancel subprocess
 ```
 
-| Approach | Pre-transmit | Native dialog | Response color | Verdict |
-|----------|--------------|---------------|----------------|---------|
-| Extension + native host | Yes | Yes | Yes | Chosen |
-| TLS MITM | Partial | Awkward | Poor | Rejected |
-| OS accessibility hooks | Unreliable | Yes | No | Rejected |
+| Approach | Pre-transmit | Native dialog | Response color | Meets “no extension” | Verdict |
+|----------|--------------|---------------|----------------|----------------------|---------|
+| Desktop app + controlled browser + JS inject | Yes | Yes | Yes | Yes | **Chosen** |
+| Browser extension + native host | Yes | Yes | Yes | No | Rejected (disqualified) |
+| TLS MITM / system proxy | Partial | Awkward | Weak | Yes | Rejected |
+| OS accessibility hooks | Unreliable | Yes | No | Yes | Rejected |
+| Embedded Electron/Qt WebView | Yes | Yes | Yes | Yes | Rejected (heavy; login friction) |
 
 ## Interception
 
-1. **Prompts** — capture-phase `keydown` (Enter), `pointerdown`/`click` on send, and `submit`. If composer text contains the marker, block the event, ask the host, then re-dispatch only after Continue.
-2. **Files** — capture-phase `change` / `drop` / `paste`. Bytes go to the host as base64. Cancel clears the input; Continue re-fires `change` once.
-3. **Responses** — CSS class `sug-ai-response` via selectors + `MutationObserver` (covers streamed replies).
-4. **Presence** — green **SUG active** badge confirms the content script is injected.
+1. **Prompts** — injected script listens (capture phase) for Enter, send-button pointer/click, and submit. If composer text contains the marker, the event is blocked, Python is asked via `__sug_check`, and the send is re-dispatched only after Continue.
+2. **Files** — capture-phase `change` / `drop` / `paste`. Bytes are base64’d to Python. Cancel clears the input; Continue re-fires `change` once.
+3. **Responses** — assistant nodes get class `sug-ai-response` + green color (`#0b6e4f`) via `adoptedStyleSheets` / `setProperty(..., 'important')`, with a `MutationObserver` for streamed replies.
+4. **Presence** — green **SUG active** badge confirms the inject is live.
 
 ## Scanning
 
@@ -42,17 +44,20 @@ Browser (Chrome / Firefox)
 | PDF | `pypdf` text extraction |
 | Image | Filename + EXIF/info strings + Tesseract OCR |
 
-Scan / UI failures **fail closed** (treated as sensitive → Cancel).
-
-## Native messaging
-
-- Host name: `com.walled.sensitive_upload_guard`
-- Chrome origin uses a stable extension ID from the manifest `key`
-- Firefox uses gecko id `sensitive-upload-guard@local`
-- Chrome often launches the host without `DISPLAY`; `run_host.sh` and dialog helpers restore a graphical session so tkinter can show
+Scan / UI / binding failures **fail closed** (treated as sensitive → Cancel).
 
 ## Enforcement
 
-- **Continue** — do not modify the original prompt or file; allow the page to proceed
-- **Cancel** — block; user can edit and retry
-- Clean content — no dialog
+- **Continue** — original prompt or file proceeds unchanged  
+- **Cancel** — block; user can edit and retry  
+- Clean content — no dialog  
+
+Dialogs run in a **subprocess** so they never nest inside the main app’s Tk loop.
+
+## Concurrency
+
+One `asyncio.Lock` serializes binding handlers so only one native dialog is shown at a time. Playwright runs on a background thread; the Tk UI polls a queue for log lines.
+
+## Why not a browser extension
+
+Walled AI requires a standalone desktop application. An extension (even as a helper) does not meet that bar. The desktop app owns the browser process, injects the gate itself, and never loads unpacked add-ons (`chrome://extensions` stays empty in the controlled profile).

@@ -1,0 +1,40 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sensitive-upload-guard"
+version = "0.2.0"
+description = "Standalone desktop DLP for ChatGPT and Perplexity — confirm before sending WALLED_SENSITIVE content"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "Vinay" }]
+keywords = ["dlp", "chatgpt", "perplexity", "desktop", "security"]
+dependencies = [
+    "playwright>=1.40",
+    "pypdf>=4.0",
+    "Pillow>=10.0",
+    "pytesseract>=0.3.10",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23",
+]
+
+[project.scripts]
+sug = "sensitive_upload_guard.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+sensitive_upload_guard = ["web/*.js"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+testpaths = ["tests"]
+pythonpath = ["src"]

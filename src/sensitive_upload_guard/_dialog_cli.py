@@ -1,17 +1,10 @@
 #!/usr/bin/env python3
-"""CLI entry used by the host to show a dialog in a clean GUI subprocess."""
+"""CLI entry used to show a dialog in a clean GUI subprocess."""
 
 from __future__ import annotations
 
 import argparse
 import sys
-from pathlib import Path
-
-ROOT = Path(__file__).resolve().parents[1]
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
-
-from native_host.dialog import _ensure_display, _show  # noqa: E402
 
 
 def main() -> int:
@@ -21,6 +14,9 @@ def main() -> int:
     parser.add_argument("--filename", default=None)
     parser.add_argument("--error", default=None)
     args = parser.parse_args()
+
+    from sensitive_upload_guard.dialog import _ensure_display, _show
+
     _ensure_display()
     decision = _show(
         source=args.source,

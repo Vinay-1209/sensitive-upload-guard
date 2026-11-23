@@ -1,13 +1,13 @@
 # Sensitive Upload Guard
 
-Lightweight desktop DLP for **ChatGPT** and **Perplexity** in the browser.
+Standalone **desktop** DLP for ChatGPT and Perplexity.
 
-When a text prompt or uploaded file contains the marker `WALLED_SENSITIVE`, a **native** Continue / Cancel dialog appears **before** the content is sent. AI-generated responses on both sites are recolored so you can see the guard is active.
+The app launches a controlled Chrome/Chromium window (no browser extension). When a text prompt or uploaded file contains `WALLED_SENSITIVE`, a **native** Continue / Cancel dialog appears **before** the content is sent. AI replies on both sites are recolored so you can see the guard is active.
 
 ```
-Browser (Chrome / Firefox)
-  └─ Extension gates send / file attach
-       └─ Python native host → scan → tkinter Continue/Cancel
+Desktop app (sug)
+  └─ Playwright Chrome/Chromium (--disable-extensions)
+       └─ Injected gate.js ↔ Python scan + tk dialog
 ```
 
 ## Features
@@ -19,8 +19,7 @@ Browser (Chrome / Firefox)
   **Cancel** — block; user can edit and retry
 - Clean traffic — no dialog
 - AI reply text color override on both sites
-- Chrome / Chromium **and** Firefox
-- Local test harness for quick verification without logging into the AI sites
+- Local HTML harness for quick checks without logging into the AI sites
 
 ## Requirements
 
@@ -28,8 +27,8 @@ Browser (Chrome / Firefox)
 |------------|--------|
 | Linux desktop session | Tested on Ubuntu 24.04 |
 | Python 3.11+ | Project uses a venv |
-| Google Chrome / Chromium and/or Firefox | Unpacked / temporary extension |
-| `python3-tk` | Native dialogs |
+| Google Chrome (preferred) or Chromium | Launched by the app |
+| `python3-tk` | Native dialogs + app UI |
 | `tesseract-ocr` | Image marker detection via OCR |
 
 ```bash
@@ -38,46 +37,27 @@ sudo apt install python3-tk tesseract-ocr
 
 ## Setup
 
-### 1. Clone and install Python deps
-
 ```bash
 git clone https://github.com/Vinay-1209/sensitive-upload-guard.git
 cd sensitive-upload-guard
 python3 -m venv .venv
 source .venv/bin/activate
-pip install -r requirements.txt
+pip install -e ".[dev]"
+playwright install chromium   # fallback if Chrome channel unavailable
 ```
 
-### 2. Register the native messaging host
+## Run
 
 ```bash
-./scripts/install_native_host.sh
+source .venv/bin/activate
+sug
+# or: python -m sensitive_upload_guard
 ```
 
-This writes host manifests for Chrome, Chromium, Brave, and Firefox.  
-Host name: `com.walled.sensitive_upload_guard`
-
-### 3. Load the extension — Chrome / Chromium
-
-1. Open `chrome://extensions`
-2. Enable **Developer mode**
-3. **Load unpacked** → select the `extension/` folder
-4. Confirm the ID is `apljnpgfjedkilddjnmmigilnickhpla` (pinned by the manifest `key`)
-5. If the ID differs: `./scripts/install_native_host.sh <your-extension-id>`
-6. Click the extension icon → **Test native host** → should show `OK` / `"pong": true`
-7. After pulling code changes, always click **Reload** on the extension card
-
-### 4. Load the extension — Firefox
-
-1. Open `about:debugging#/runtime/this-firefox`
-2. **Load Temporary Add-on** → choose `extension/manifest.json`
-3. Gecko id: `sensitive-upload-guard@local` (registered by the install script)
-
-## Usage
-
-1. Open ChatGPT or Perplexity (or the local harness below).
-2. Look for the green **SUG active** badge (bottom-right) — confirms the content script is injected.
-3. Behaviour:
+1. Click **Start guard** — a Chrome/Chromium window opens (extensions disabled).
+2. Click **Open ChatGPT** or **Open Perplexity** (log in once; the profile is reused under `~/.local/share/sensitive-upload-guard/profile`).
+3. Look for the green **SUG active** badge (bottom-right).
+4. Try:
 
 | Action | Expected |
 |--------|----------|
@@ -89,46 +69,63 @@ Host name: `com.walled.sensitive_upload_guard`
 | Cancel | Blocked; you can edit and try again |
 | AI replies | Text colored green (`#0b6e4f`) |
 
-### Local test harness (recommended first check)
+### Local test harness
 
 ```bash
 cd testharness
 python3 -m http.server 8766
-# open http://127.0.0.1:8766/
 ```
 
-Reload the extension first (so `localhost` permissions apply), then try clean vs sensitive prompts and file uploads.
+With the guard running, open `http://127.0.0.1:8766/` in the **controlled** browser window (paste the URL in the address bar).
 
-Sample files: `fixtures/clean.*` and `fixtures/sensitive.*`.
+## Why this is not a browser extension
+
+The assignment requires a **standalone desktop application**. This project:
+
+- Ships a Tk desktop UI (`sug`)
+- Owns the browser process via Playwright
+- Injects monitoring JS itself (`add_init_script`)
+- Never installs a Chrome/Firefox extension, plugin, or add-on
+
+`chrome://extensions` in the controlled profile should show no SUG add-on.
 
 ## Project layout
 
 ```
-extension/           MV3 extension (gate, color, popup, background)
-native_host/         Native messaging host, scanners, tk dialog
-scripts/             install_native_host.sh
-testharness/         Local HTML page for end-to-end checks
-fixtures/            Clean / sensitive txt, pdf, png
-tests/               Unit tests for scanners + host logic
-ARCHITECTURE.md      Design and interception details
+src/sensitive_upload_guard/
+  app.py          Tk desktop shell
+  guard.py        Playwright worker + binding
+  handlers.py     check_prompt / check_file
+  dialog.py       native Continue/Cancel
+  scan/detect.py  text / PDF / image scanners
+  web/gate.js     injected page gate + color
+testharness/      local HTML page
+fixtures/         clean / sensitive samples
+tests/            unit + harness e2e
+ARCHITECTURE.md   design notes
 ```
 
 ## Tests
 
 ```bash
 source .venv/bin/activate
-PYTHONPATH=. pytest -q
+pytest -q
 ```
 
-## Troubleshooting
+## Known limitations
 
-| Symptom | Fix |
-|---------|-----|
-| No **SUG active** badge | Reload the extension; confirm the site matches ChatGPT / Perplexity / localhost harness |
-| **Test native host** fails | Re-run `./scripts/install_native_host.sh`; confirm extension ID matches the host JSON |
-| No dialog on sensitive text | Reload extension; ensure a graphical session; host restores `DISPLAY` automatically when Chrome strips it |
-| Image scan always sensitive | Install `tesseract-ocr`; OCR failures fail closed by design |
-| Firefox temporary add-on gone | Load it again after browser restart |
+- DOM selectors can break when ChatGPT/Perplexity redesign the UI
+- Only the app-controlled browser is guarded (not your everyday Chrome profile unless you start it from the app)
+- Image-only PDFs are not OCR’d (text-layer PDFs are)
+- Missing `tesseract` → image scans fail closed (extra Cancel prompts)
+- Some SPA paths (edit-and-resend chips, etc.) may need selector updates
+
+## Security notes
+
+- Fail closed on host / UI / OCR / binding errors
+- Continue never rewrites payload content
+- Inject only activates on ChatGPT, Perplexity, and localhost harness hosts
+- Browser profile (cookies) lives outside the repo
 
 ## Architecture
 
@@ -136,30 +133,32 @@ See [ARCHITECTURE.md](ARCHITECTURE.md).
 
 ## Demo video
 
-A walkthrough clip is in [`demo/sensitive-upload-guard-demo.mp4`](demo/sensitive-upload-guard-demo.mp4).
-
-Regenerate locally:
+Record a live walkthrough of the **desktop app** (both sites) with OBS:
 
 ```bash
+# Terminal A: start OBS (websocket enabled on :4455)
+obs
+
+# Terminal B:
 source .venv/bin/activate
-pip install -r requirements.txt   # includes Pillow
-python scripts/make_demo_video.py
+pip install obsws-python   # only needed for the recorder helper
+PYTHONPATH=src python scripts/record_live_demo.py
 ```
 
-Upload that file to YouTube (Unlisted) and paste the link in your submission form.
+Output (local, **not** committed — upload to YouTube yourself):
 
-### Live demo checklist (screen recording of real browsers)
+`~/Videos/sensitive-upload-guard/sensitive-upload-guard-desktop-live.mp4`
 
-1. Clean prompt — no dialog  
-2. Sensitive prompt — Cancel, then Continue  
-3. Sensitive text / PDF / image upload — dialog  
-4. Response color visible on **both** ChatGPT and Perplexity  
+The script shows: title card → controlled Chrome (no extensions) → ChatGPT clean / Cancel / Continue / file Cancel → Perplexity Cancel / Continue. Native Continue/Cancel dialogs are real tk windows.
 
-## Security notes
+Manual checklist for your own recording:
 
-- Fail closed on host / UI / OCR errors  
-- Continue never rewrites payload content  
-- Only configured site origins are matched  
+1. `sug` → **Start guard** → Open ChatGPT and Perplexity  
+2. Confirm `chrome://extensions` has no SUG add-on  
+3. Clean prompt (no dialog)  
+4. `WALLED_SENSITIVE` → Cancel, then Continue  
+5. Sensitive file from `fixtures/` → dialog  
+6. Response text color on both sites  
 
 ## License
 
